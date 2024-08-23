@@ -1,0 +1,4 @@
+pygame
+obd
+pyserial
+RPi.GPIO 
