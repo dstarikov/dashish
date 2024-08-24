@@ -342,13 +342,13 @@ def update_sensor_data():
                 pro_micro.write(f"{data['RPM']}\n".encode())
         except Exception as e:
             print(f'Error: {e}')
-
+            
     if elm327_connected:
         try:
             response_coolant_temp = elm327_connection.query(obd.commands.COOLANT_TEMP)
             response_engine_load = elm327_connection.query(obd.commands.ENGINE_LOAD)
             response_intake_temp = elm327_connection.query(obd.commands.INTAKE_TEMP)
-            response_maf = elm327_connection.query(obd.commands.TIMING_ADVANCE)
+            response_timing_advance= elm327_connection.query(obd.commands.TIMING_ADVANCE)
 
             if not response_coolant_temp.is_null():
                 data['ELM_CoolantTemp'] = response_coolant_temp.value.magnitude * 9 / 5 + 32  # Convert from Celsius to Fahrenheit
@@ -360,7 +360,7 @@ def update_sensor_data():
                 data['ELM_TimingAdvance'] = response_timing_advance.value.magnitude  # Update Timing Advance value
         except Exception as e:
             print(f'Error fetching OBD-II data: {e}')
-
+            
 # Main display function
 def display_data():
     # Draw the background image
