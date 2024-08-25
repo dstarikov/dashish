@@ -9,10 +9,12 @@ import json
 
 # Trip manager class to handle trip calculations
 class TripManager:
+    # Initialize the Trip Manager class
     def __init__(self):
         self.reset_trip()
         self.last_update_time = time.time()  # Track time for 2.5-second updates
 
+    # Reset the trip manager class distance and lat/longitude
     def reset_trip(self):
         self.total_distance = 0.0
         self.last_lat = None
