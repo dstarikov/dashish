@@ -34,6 +34,7 @@ class TripManager:
             # Reset the timer for the next update
             self.last_update_time = time.time()
 
+    # Get the total distance traveled in the TripManager class
     def get_total_distance(self):
         return self.total_distance
 
