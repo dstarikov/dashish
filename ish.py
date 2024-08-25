@@ -6,19 +6,27 @@ import math
 import obd
 import time
 import json
+import os
+
+# File to store the total miles
+MILES_FILE = "total_miles.txt"
 
 # Trip manager class to handle trip calculations
 class TripManager:
-    # Initialize the Trip Manager class
-    def __init__(self):
-        self.reset_trip()
-        self.last_update_time = time.time()  # Track time for 2.5-second updates
+    MILES_FILE = "total_miles.txt"
 
-    # Reset the trip manager class distance and lat/longitude
+    def __init__(self):
+        self.total_distance = self.load_total_miles_from_file()  # Load saved total miles
+        self.last_update_time = time.time()  # Track time for 2.5-second updates
+        self.last_lat = None
+        self.last_lon = None
+        
+
     def reset_trip(self):
         self.total_distance = 0.0
         self.last_lat = None
         self.last_lon = None
+        self.save_total_miles_to_file(self.total_distance)  # Save reset state to file
 
     def update_trip(self, current_lat, current_lon):
         # Only update every 2.5 seconds
@@ -31,12 +39,32 @@ class TripManager:
             # Update the last known coordinates
             self.last_lat = current_lat
             self.last_lon = current_lon
+
+            # Save the updated total distance to file
+            self.save_total_miles_to_file(self.total_distance)
             # Reset the timer for the next update
             self.last_update_time = time.time()
 
-    # Get the total distance traveled in the TripManager class
     def get_total_distance(self):
         return self.total_distance
+
+    def load_total_miles_from_file(self):
+        if os.path.exists(self.MILES_FILE):
+            try:
+                with open(self.MILES_FILE, "r") as file:
+                    return float(file.read().strip())
+            except (ValueError, IOError) as e:
+                print(f"Error reading total miles from file: {e}")
+                return 0.0
+        return 0.0  # If file doesn't exist, return 0.0
+
+    def save_total_miles_to_file(self, total_miles):
+        try:
+            with open(self.MILES_FILE, "w") as file:
+                file.write(f"{total_miles}")
+        except IOError as e:
+            print(f"Error writing total miles to file: {e}")
+    
 
 # Function to calculate distance between two lat/long points using the Haversine formula
 def calculate_distance(lat1, lon1, lat2, lon2):
@@ -54,18 +82,42 @@ def calculate_distance(lat1, lon1, lat2, lon2):
 # Instantiate the trip manager
 trip_manager = TripManager()
 
+# Function to fetch GPS data from Arduino
+def get_gps_data_from_arduino():
+    if arduino_connected and arduino.in_waiting > 0:
+        try:
+            line = arduino.readline().decode('utf-8').strip()
+            gps_data = json.loads(line)  # Assuming the data is JSON formatted
+            current_lat = gps_data.get('Latitude', None)
+            current_lon = gps_data.get('Longitude', None)
+            return current_lat, current_lon
+        except json.JSONDecodeError:
+            print(f"Error decoding GPS data: {line}")
+            return None, None
+    return None, None
+
+# Function to update GPS data and manage the trip
+# def update_gps_and_trip():
+#     # Simulating GPS data (replace this with actual GPS data in your setup)
+#     gps_data = {"lat": 37.7749, "lon": -122.4194}  # Example coordinates (San Francisco)
+#     if gps_data:
+#         current_lat = gps_data['lat']
+#         current_lon = gps_data['lon']
+        
+#         # Update the trip distance every 2.5 seconds
+#         trip_manager.update_trip(current_lat, current_lon)
+        
+#         return trip_manager.get_total_distance()
+
 # Function to update GPS data and manage the trip
 def update_gps_and_trip():
-    # Simulating GPS data (replace this with actual GPS data in your setup)
-    gps_data = {"lat": 37.7749, "lon": -122.4194}  # Example coordinates (San Francisco)
-    if gps_data:
-        current_lat = gps_data['lat']
-        current_lon = gps_data['lon']
-        
+    current_lat, current_lon = get_gps_data_from_arduino()  # Fetch from Arduino
+    if current_lat is not None and current_lon is not None:
         # Update the trip distance every 2.5 seconds
         trip_manager.update_trip(current_lat, current_lon)
-        
-        return trip_manager.get_total_distance()
+    return trip_manager.get_total_distance()
+
+
 
 # Helper function to draw the Trip Distance value with leading zero logic and label
 def draw_trip_text(surface, trip_distance, font, label_font, color, dark_gray_color, position):
@@ -74,7 +126,7 @@ def draw_trip_text(surface, trip_distance, font, label_font, color, dark_gray_co
     surface.blit(trip_label_surface, (position[0] - trip_label_surface.get_width() - 10, position[1]))
 
     # Format the trip distance as a 4-digit number with leading zeros
-    trip_str = f"{int(trip_distance):04d}"
+    trip_str = f"{trip_distance:05.1f}"
 
     # Logic to render each digit, ensuring leading zeros are gray and counting digits are white
     x_offset = 0
@@ -191,7 +243,7 @@ values_font_size = 45  # Smaller value font size
 rpm_font_size = 65  # Smaller RPM font size
 speed_font_size = 80  # Smaller Speed font size
 units_font_size = 20  # Smaller font size for units
-trip_font_size = 35  # Adjust this value as needed for the desired size
+trip_font_size = 25  # Adjust this value as needed for the desired size
 
 # Load custom fonts
 custom_value_font = pygame.font.Font(custom_font_path, values_font_size)
@@ -452,6 +504,16 @@ def update_sensor_data():
                 data['ELM_TimingAdvance'] = response_timing_advance.value.magnitude  # Update Timing Advance value
         except Exception as e:
             print(f'Error fetching OBD-II data: {e}')
+
+    if pro_micro_connected and pro_micro.in_waiting > 0:
+        try:
+            line = pro_micro.readline().decode('utf-8').strip()
+            print(line)
+            if line == 'trip_reset':
+                trip_manager.reset_trip()
+                print("Reset the trip_manager state")
+        except Exception as e:
+            print(f'Error: {e}')
 
 # Main display function
 def display_data():
