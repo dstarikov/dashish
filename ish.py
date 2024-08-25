@@ -8,9 +8,6 @@ import time
 import json
 import os
 
-# File to store the total miles
-MILES_FILE = "total_miles.txt"
-
 # Trip manager class to handle trip calculations
 class TripManager:
     MILES_FILE = "total_miles.txt"
