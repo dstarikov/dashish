@@ -26,21 +26,19 @@ class TripManager:
         self.save_total_miles_to_file(self.total_distance)  # Save reset state to file
 
     def update_trip(self, current_lat, current_lon):
-        # Only update every 2.5 seconds
-        if time.time() - self.last_update_time > 2.5:
-            if self.last_lat is not None and self.last_lon is not None:
-                # Calculate the distance from the last point to the current point
-                distance = calculate_distance(self.last_lat, self.last_lon, current_lat, current_lon)
-                self.total_distance += distance
+        if self.last_lat is not None and self.last_lon is not None:
+            # Calculate the distance from the last point to the current point
+            distance = calculate_distance(self.last_lat, self.last_lon, current_lat, current_lon)
+            self.total_distance += distance
 
-            # Update the last known coordinates
-            self.last_lat = current_lat
-            self.last_lon = current_lon
+        # Update the last known coordinates
+        self.last_lat = current_lat
+        self.last_lon = current_lon
 
-            # Save the updated total distance to file
-            self.save_total_miles_to_file(self.total_distance)
-            # Reset the timer for the next update
-            self.last_update_time = time.time()
+        # Save the updated total distance to file
+        self.save_total_miles_to_file(self.total_distance)
+
+        return self.get_total_distance()
 
     def get_total_distance(self):
         return self.total_distance
@@ -189,7 +187,7 @@ background = pygame.image.load('/home/cleanish/r4/skin1.png')
 background = pygame.transform.scale(background, (screen_width, screen_height))
 
 # Load and scale the RPM bar background image
-rpm_background = pygame.image.load('/home/cleanish/dash_/graphics/rpm_wave2.png')
+rpm_background = pygame.image.load('/home/cleanish/dashish/graphics/rpm_wave2.png')
 rpm_bar_height = 130  # Height for the RPM bar
 rpm_background = pygame.transform.scale(rpm_background, (screen_width, rpm_bar_height))
 
@@ -222,6 +220,9 @@ data = {
     "CoolantTemp": [0] * 100,
     "OilTemp": [0] * 100,
     "Speed": [0] * 25,
+    "Latitude": 0.0,
+    "Longitude": 0.0,
+    "Distance": 0.0,
     "RPM": 0,  # Direct RPM value as an integer
     "Ax": [0] * 25,
     "Ay": [0] * 25,
@@ -469,12 +470,14 @@ def update_sensor_data():
             sensor_data = json.loads(line)
             for key, value in sensor_data.items():
                 if key in data:
-                    if key == "RPM":
+                    if key == "RPM" or key == "Latitude" or key == "Longitude":
                         data[key] = value
                     else:
                         data[key].append(value)
                         if len(data[key]) > 25:
                             data[key].pop(0)
+            if "Latitude" in sensor_data and "Longitude" in sensor_data:
+                data["Distance"] = trip_manager.update_trip(sensor_data["Latitude"], sensor_data["Longitude"])
             if pro_micro_connected:
                 pro_micro.write(f"{data['RPM']}\n".encode())
         except json.JSONDecodeError:
@@ -559,8 +562,7 @@ def display_data():
     draw_oil_pressure_bar(screen, get_average(data['Pressure']), 100, (583, 395), small_bar_size)
 
    # Draw the trip distance on the screen with the smaller font
-    trip_distance = update_gps_and_trip()
-    draw_trip_text(screen, trip_distance, custom_trip_font, custom_unit_font, white, dark_gray, (865, 400))
+    draw_trip_text(screen, data["Distance"], custom_trip_font, custom_unit_font, white, dark_gray, (865, 400))
 
     pygame.display.update()  # Update the display
 
