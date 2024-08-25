@@ -1,0 +1,50 @@
+1. Create the udev rule file:
+Run the following command to create or edit the udev rule file:
+
+bash
+Copy code
+sudo nano /etc/udev/rules.d/99-usb-serial.rules
+2. Add the rules for the three devices:
+In the file, add the following lines for each device based on their Vendor ID (VID) and Product ID (PID):
+
+bash
+Copy code
+# Arduino Uno WiFi R4
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2341", ATTRS{idProduct}=="1002", SYMLINK+="arduino"
+
+# Raspberry Pi Pico W
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="f00a", SYMLINK+="pico"
+
+# QinHeng Electronics CH340 serial converter (CH340-based devices like your previous Pro Micro)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="ch340"
+This will create symbolic links:
+
+/dev/arduino for your Arduino Uno WiFi R4.
+/dev/pico for your Raspberry Pi Pico W.
+/dev/ch340 for the QinHeng Electronics CH340 serial converter (if it's still connected or used in another context).
+3. Reload udev rules and trigger:
+Save and exit the file by pressing CTRL+X, then Y, and ENTER.
+
+After that, reload the udev rules and trigger them:
+
+bash
+Copy code
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+4. Verify the device names:
+Disconnect and reconnect the devices to apply the rules. Then, check if the symbolic links have been created:
+
+bash
+Copy code
+ls -l /dev/arduino /dev/pico /dev/ch340
+If everything is set up correctly, the devices should appear under these symbolic names.
+
+5. Update your Python script:
+Now, you can update your Python script to reference the correct devices:
+
+python
+Copy code
+ARDUINO_PORT = '/dev/arduino'  # Arduino Uno WiFi R4
+PICO_PORT = '/dev/pico'  # Raspberry Pi Pico W
+CH340_PORT = '/dev/ch340'  # CH340 serial converter (optional if still used)
+This setup ensures that your devices will consistently be recognized with the same names across reboots and re-plugs.

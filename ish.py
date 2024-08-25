@@ -5,11 +5,90 @@ from pygame.locals import *
 import math
 import obd
 import time
+import json
+
+# Trip manager class to handle trip calculations
+class TripManager:
+    def __init__(self):
+        self.reset_trip()
+        self.last_update_time = time.time()  # Track time for 2.5-second updates
+
+    def reset_trip(self):
+        self.total_distance = 0.0
+        self.last_lat = None
+        self.last_lon = None
+
+    def update_trip(self, current_lat, current_lon):
+        # Only update every 2.5 seconds
+        if time.time() - self.last_update_time > 2.5:
+            if self.last_lat is not None and self.last_lon is not None:
+                # Calculate the distance from the last point to the current point
+                distance = calculate_distance(self.last_lat, self.last_lon, current_lat, current_lon)
+                self.total_distance += distance
+
+            # Update the last known coordinates
+            self.last_lat = current_lat
+            self.last_lon = current_lon
+            # Reset the timer for the next update
+            self.last_update_time = time.time()
+
+    def get_total_distance(self):
+        return self.total_distance
+
+# Function to calculate distance between two lat/long points using the Haversine formula
+def calculate_distance(lat1, lon1, lat2, lon2):
+    R = 3958.8  # Radius of the Earth in miles. Use 6371 for kilometers.
+    
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    
+    a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    
+    distance = R * c  # Distance in miles
+    return distance
+
+# Instantiate the trip manager
+trip_manager = TripManager()
+
+# Function to update GPS data and manage the trip
+def update_gps_and_trip():
+    # Simulating GPS data (replace this with actual GPS data in your setup)
+    gps_data = {"lat": 37.7749, "lon": -122.4194}  # Example coordinates (San Francisco)
+    if gps_data:
+        current_lat = gps_data['lat']
+        current_lon = gps_data['lon']
+        
+        # Update the trip distance every 2.5 seconds
+        trip_manager.update_trip(current_lat, current_lon)
+        
+        return trip_manager.get_total_distance()
+
+# Helper function to draw the Trip Distance value with leading zero logic and label
+def draw_trip_text(surface, trip_distance, font, label_font, color, dark_gray_color, position):
+    # Draw the "Trip" label on the left side of the number value
+    trip_label_surface = label_font.render("trip.", True, color)
+    surface.blit(trip_label_surface, (position[0] - trip_label_surface.get_width() - 10, position[1]))
+
+    # Format the trip distance as a 4-digit number with leading zeros
+    trip_str = f"{int(trip_distance):04d}"
+
+    # Logic to render each digit, ensuring leading zeros are gray and counting digits are white
+    x_offset = 0
+    for i, digit in enumerate(trip_str):
+        if digit == '0' and i < len(trip_str) - 1:  # Leading zeros are dark gray, except the last zero before non-zero digits
+            digit_surf = font.render(digit, True, dark_gray_color)
+        else:
+            digit_surf = font.render(digit, True, color)  # Non-zero or the rightmost zero
+
+        # Render the digit and adjust position for the next one
+        surface.blit(digit_surf, (position[0] + x_offset, position[1]))
+        x_offset += digit_surf.get_width()
 
 # Serial port configuration
-ARDUINO_PORT = '/dev/ttyACM0'  # Port for Arduino Uno
-PROMICRO_PORT = '/dev/ttyACM1'  # Port for Pro Micro controlling LEDs
-ELM327_PORT = '/dev/ttyUSB0'  # Port for ELM327 adapter
+ARDUINO_PORT = '/dev/arduino'  # sensor data
+PROMICRO_PORT = '//dev/pico'  # rpm light
+ELM327_PORT = '/dev/ch340'  # obd2 elm327 adapter
 BAUD_RATE = 115200  # Baud rate for both serial devices
 
 # Attempt to connect to the Arduino Uno serial port
@@ -36,6 +115,7 @@ try:
     elm327_connection.watch(obd.commands.ENGINE_LOAD)
     elm327_connection.watch(obd.commands.INTAKE_TEMP)
     elm327_connection.watch(obd.commands.MAF)
+    elm327_connection.watch(obd.commands.TIMING_ADVANCE)
     elm327_connection.start()
 except Exception as e:
     print(f"Failed to connect to ELM327 adapter: {e}")
@@ -57,22 +137,24 @@ background = pygame.image.load('/home/cleanish/r4/skin1.png')
 background = pygame.transform.scale(background, (screen_width, screen_height))
 
 # Load and scale the RPM bar background image
-rpm_background = pygame.image.load('/home/cleanish/r4/dark mode/rpm_wave.png')
-rpm_bar_height = 125  # Height for the RPM bar
+rpm_background = pygame.image.load('/home/cleanish/dash_/graphics/rpm_wave2.png')
+rpm_bar_height = 130  # Height for the RPM bar
 rpm_background = pygame.transform.scale(rpm_background, (screen_width, rpm_bar_height))
 
 # Load the small bar image for coolant, oil temperature, and oil pressure bars (no distortion)
 small_bar_background = pygame.image.load('/home/cleanish/r4/dark mode/bar_etc_dark.png')
-small_bar_size = (150, 15)  # Size for the small bars
+small_bar_size = (150, 17)  # Size for the small bars
 
-# Create a mirrored version of the small bar image for the oil pressure bar
-mirrored_small_bar_background = pygame.transform.flip(small_bar_background, True, False)
+# Load a new image for the oil pressure bar
+oil_pressure_bar_background = pygame.image.load('/home/cleanish/r4/dark mode/bar_op_dark.png')
 
 # Load the custom fonts
 custom_font_path = '/home/cleanish/r4/ZeroAthletics.ttf'
 rpm_font_path = '/home/cleanish/r4/ZeroAthletics.ttf'
 elm_font_path = '/home/cleanish/r4/Orbitron-Black.ttf'  # Font for ELM values
 pressure_coolant_oil_font_path = '/home/cleanish/r4/ZeroAthletics.ttf'  # Font for pressure, coolant temp, oil temp
+custom_unit_font = '/home/cleanish/dash_/Fonts/Orbitron-Black.ttf'
+custom_trip_font = '/home/cleanish/dash_/Fonts/Orbitron-Black.ttf'
 
 # Colors
 white = (255, 255, 255)
@@ -103,15 +185,17 @@ data = {
 
 # Variables for sweeping values (adjusted font sizes)
 values_font_size = 45  # Smaller value font size
-rpm_font_size = 60  # Smaller RPM font size
-speed_font_size = 75  # Smaller Speed font size
+rpm_font_size = 65  # Smaller RPM font size
+speed_font_size = 80  # Smaller Speed font size
 units_font_size = 20  # Smaller font size for units
+trip_font_size = 35  # Adjust this value as needed for the desired size
 
 # Load custom fonts
 custom_value_font = pygame.font.Font(custom_font_path, values_font_size)
 custom_rpm_font = pygame.font.Font(rpm_font_path, rpm_font_size)
 custom_speed_font = pygame.font.Font(rpm_font_path, speed_font_size)
 custom_unit_font = pygame.font.Font(custom_font_path, units_font_size)
+custom_trip_font = pygame.font.Font(custom_trip_font, trip_font_size )
 
 # Define custom sizes for each ELM value
 elm_coolant_temp_font_size = 25
@@ -124,7 +208,6 @@ elm_coolant_temp_font = pygame.font.Font(elm_font_path, elm_coolant_temp_font_si
 elm_intake_temp_font = pygame.font.Font(elm_font_path, elm_intake_temp_font_size)
 elm_maf_font = pygame.font.Font(elm_font_path, elm_maf_font_size)
 elm_engine_load_font = pygame.font.Font(elm_font_path, elm_engine_load_font_size)
-
 elm_unit_font = pygame.font.Font(elm_font_path, units_font_size)  # ELM-specific unit font
 pressure_coolant_oil_font = pygame.font.Font(pressure_coolant_oil_font_path, values_font_size)  # New font for specific values
 
@@ -137,7 +220,7 @@ text_elements = {
         "value_font": pressure_coolant_oil_font,  # Use the new font for pressure
         "unit_font": custom_unit_font,
         "color": white,
-        "position": (695, 340),  # Fixed on the right, will expand left
+        "position": (700, 343),  # Fixed on the right, will expand left
     },
     "coolant_temp": {
         "title": "",
@@ -146,7 +229,7 @@ text_elements = {
         "value_font": pressure_coolant_oil_font,  # Use the new font for coolant temp
         "unit_font": custom_unit_font,
         "color": white,
-        "position": (665, 60),  # Fixed on the right, will expand left
+        "position": (670, 60),  # Fixed on the right, will expand left
     },
     "oil_temp": {
         "title": "",
@@ -155,7 +238,7 @@ text_elements = {
         "value_font": pressure_coolant_oil_font,  # Use the new font for oil temp
         "unit_font": custom_unit_font,
         "color": white,
-        "position": (665, 205),  # Fixed on the right, will expand left
+        "position": (670, 205),  # Fixed on the right, will expand left
     },
     "speed": {
         "title": "",
@@ -163,7 +246,7 @@ text_elements = {
         "value_font": custom_speed_font,
         "unit_font": None,  # No unit for speed
         "color": white,
-        "position": (830 , 15),  # You can adjust this as needed
+        "position": (830 , 20),  # You can adjust this as needed
     },
     "rpm": {
         "title": "",
@@ -171,7 +254,7 @@ text_elements = {
         "value_font": custom_rpm_font,
         "unit_font": None,  # No unit for RPM
         "color": white,
-        "position": (15, 460),  # You can adjust this as needed
+        "position": (15, 461),  # You can adjust this as needed
     },
     "elm_coolant_temp": {
         "title": "Coolant Temp",
@@ -198,7 +281,7 @@ text_elements = {
         "value_font": elm_maf_font,  # Use the same font as before
         "unit_font": elm_unit_font,
         "color": white,
-        "position": (940, 276),
+        "position": (940, 277),
     },
     "elm_engine_load": {
         "title": "Engine Load",
@@ -207,7 +290,7 @@ text_elements = {
         "value_font": elm_engine_load_font,  # Adjusted font size
         "unit_font": elm_unit_font,
         "color": white,
-        "position": (948, 327),
+        "position": (948, 335),
     }
 }
 
@@ -246,7 +329,7 @@ def draw_rpm_text(surface, rpm, font, color, gray_color, position):
     # Draw the "RPM." text separately, ensuring it does not move
     rpm_label_font = pygame.font.Font(rpm_font_path, 30)  # Smaller font size for "RPM."
     rpm_label_surf = rpm_label_font.render("RPM.", True, gray)
-    surface.blit(rpm_label_surf, (position[0] + 145, position[1]+ 30))  # Adjust as necessary
+    surface.blit(rpm_label_surf, (position[0] + 156, position[1]+ 34))  # Adjust as necessary
 
 # Helper function to draw the Speed value with leading zero logic
 def draw_speed_text(surface, speed, font, color, dark_gray_color, position):
@@ -291,13 +374,13 @@ def draw_small_bar(surface, value, max_value, position, size):
     if fill_width < width:
         pygame.draw.rect(surface, black, (position[0] + fill_width, position[1], width - fill_width, height))
 
-# Helper function to draw a mirrored color bar for oil pressure using the new small bar image
-def draw_mirrored_color_bar(surface, value, max_value, position, size):
+# Helper function to draw a color bar for oil pressure using the new small bar image
+def draw_oil_pressure_bar(surface, value, max_value, position, size):
     width, height = size
     fill_width = int((value / max_value) * width)
 
-    # Scale the mirrored small bar image to match the size of the small bar
-    scaled_background = pygame.transform.scale(mirrored_small_bar_background, size)
+    # Scale the new image to match the size of the bar
+    scaled_background = pygame.transform.scale(oil_pressure_bar_background, size)
     
     # Blit the full background image onto the surface
     surface.blit(scaled_background, position)
@@ -307,6 +390,10 @@ def draw_mirrored_color_bar(surface, value, max_value, position, size):
         pygame.draw.rect(surface, black, (position[0] + fill_width, position[1], width - fill_width, height))
 
 # Function to get the average of the last N samples
+def display_data():
+    # Draw the background image
+    screen.blit(background, (0, 0))
+
 def get_average(values):
     return sum(values) / len(values)
 
@@ -322,13 +409,12 @@ def kmh_to_mph(kmh, digits=3):
     else:
         return int(mph)
 
-# Update the sensor data
 def update_sensor_data():
     if arduino_connected and arduino.in_waiting > 0:
         try:
             line = arduino.readline().decode('utf-8').strip()
             print(line)
-            sensor_data = eval(line)
+            sensor_data = json.loads(line)
             for key, value in sensor_data.items():
                 if key in data:
                     if key == "RPM":
@@ -337,30 +423,33 @@ def update_sensor_data():
                         data[key].append(value)
                         if len(data[key]) > 25:
                             data[key].pop(0)
-            # Send RPM value to Pro Micro
             if pro_micro_connected:
                 pro_micro.write(f"{data['RPM']}\n".encode())
+        except json.JSONDecodeError:
+            print(f'Error: Failed to decode JSON from Arduino line: {line}')
         except Exception as e:
             print(f'Error: {e}')
-            
+
     if elm327_connected:
         try:
+            # Query all OBD-II data at once
             response_coolant_temp = elm327_connection.query(obd.commands.COOLANT_TEMP)
             response_engine_load = elm327_connection.query(obd.commands.ENGINE_LOAD)
             response_intake_temp = elm327_connection.query(obd.commands.INTAKE_TEMP)
-            response_timing_advance= elm327_connection.query(obd.commands.TIMING_ADVANCE)
+            response_timing_advance = elm327_connection.query(obd.commands.TIMING_ADVANCE)
 
-            if not response_coolant_temp.is_null():
+            # Check and process each response
+            if response_coolant_temp and not response_coolant_temp.is_null():
                 data['ELM_CoolantTemp'] = response_coolant_temp.value.magnitude * 9 / 5 + 32  # Convert from Celsius to Fahrenheit
-            if not response_engine_load.is_null():
+            if response_engine_load and not response_engine_load.is_null():
                 data['ELM_EngineLoad'] = response_engine_load.value.magnitude
-            if not response_intake_temp.is_null():
+            if response_intake_temp and not response_intake_temp.is_null():
                 data['ELM_IntakeTemp'] = response_intake_temp.value.magnitude * 9 / 5 + 32  # Convert from Celsius to Fahrenheit
-            if not response_timing_advance.is_null():
+            if response_timing_advance and not response_timing_advance.is_null():
                 data['ELM_TimingAdvance'] = response_timing_advance.value.magnitude  # Update Timing Advance value
         except Exception as e:
             print(f'Error fetching OBD-II data: {e}')
-            
+
 # Main display function
 def display_data():
     # Draw the background image
@@ -401,11 +490,17 @@ def display_data():
             )
 
     # Draw small progress bars for coolant and oil temperature using the new small bar image
-    draw_small_bar(screen, get_average(data['CoolantTemp']), 205, (583, 114), small_bar_size)
-    draw_small_bar(screen, get_average(data['OilTemp']), 220, (583, 257), small_bar_size)
+    draw_small_bar(screen, get_average(data['CoolantTemp']), 205, (583, 113), small_bar_size)
+    draw_small_bar(screen, get_average(data['OilTemp']), 220, (583, 256), small_bar_size)
    
     # Draw mirrored color bar for oil pressure using the new small bar image
-    draw_mirrored_color_bar(screen, get_average(data['Pressure']), 100, (583, 395), small_bar_size)
+    draw_oil_pressure_bar(screen, get_average(data['Pressure']), 100, (583, 395), small_bar_size)
+
+   # Draw the trip distance on the screen with the smaller font
+    trip_distance = update_gps_and_trip()
+    draw_trip_text(screen, trip_distance, custom_trip_font, custom_unit_font, white, dark_gray, (865, 400))
+
+    pygame.display.update()  # Update the display
 
     # Display additional ELM327 data if connected
     if elm327_connected:
@@ -446,8 +541,6 @@ def display_data():
             text_elements['elm_engine_load']['position']
         )
 
-    pygame.display.update()  # Update the display
-
 # Main loop
 def main():
     running = True
@@ -459,7 +552,7 @@ def main():
         # Update sensor data
         update_sensor_data()
 
-        # Display updated data
+        # Display updated data including trip distance
         display_data()
 
         # Update the display
