@@ -85,6 +85,8 @@ def get_gps_data_from_arduino():
             gps_data = json.loads(line)  # Assuming the data is JSON formatted
             current_lat = gps_data.get('Latitude', None)
             current_lon = gps_data.get('Longitude', None)
+            if current_lat == 0.0 and current_lon == 0.0:
+                return None, None
             return current_lat, current_lon
         except json.JSONDecodeError:
             print(f"Error decoding GPS data: {line}")
@@ -477,7 +479,11 @@ def update_sensor_data():
                         if len(data[key]) > 25:
                             data[key].pop(0)
             if "Latitude" in sensor_data and "Longitude" in sensor_data:
-                data["Distance"] = trip_manager.update_trip(sensor_data["Latitude"], sensor_data["Longitude"])
+                lat = sensor_data["Latitude"]
+                lng = sensor_data["Longitude"]
+                # Ignore null/missing GPS sensor data
+                if int(lat) != 0 and int(lng) != 0:
+                    data["Distance"] = trip_manager.update_trip(lat, lng)
             if pro_micro_connected:
                 pro_micro.write(f"{data['RPM']}\n".encode())
         except json.JSONDecodeError:
