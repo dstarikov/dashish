@@ -241,7 +241,7 @@ values_font_size = 45  # Smaller value font size
 rpm_font_size = 65  # Smaller RPM font size
 speed_font_size = 80  # Smaller Speed font size
 units_font_size = 20  # Smaller font size for units
-trip_font_size = 25  # Adjust this value as needed for the desired size
+trip_font_size = 27  # Adjust this value as needed for the desired size
 
 # Load custom fonts
 custom_value_font = pygame.font.Font(custom_font_path, values_font_size)
@@ -316,7 +316,7 @@ text_elements = {
         "value_font": elm_coolant_temp_font,  # Adjusted font size
         "unit_font": elm_unit_font,
         "color": white,
-        "position": (945, 160),
+        "position": (964, 160),
     },
     "elm_intake_temp": {
         "title": "Intake Temp",
@@ -325,7 +325,7 @@ text_elements = {
         "value_font": elm_intake_temp_font,  # Adjusted font size
         "unit_font": elm_unit_font,
         "color": white,
-        "position": (945, 218),
+        "position": (965, 218),
     },
     "elm_timing_advance": {
         "title": "Timing Advance",
@@ -334,7 +334,7 @@ text_elements = {
         "value_font": elm_maf_font,  # Use the same font as before
         "unit_font": elm_unit_font,
         "color": white,
-        "position": (940, 277),
+        "position": (960, 277),
     },
     "elm_engine_load": {
         "title": "Engine Load",
@@ -343,7 +343,7 @@ text_elements = {
         "value_font": elm_engine_load_font,  # Adjusted font size
         "unit_font": elm_unit_font,
         "color": white,
-        "position": (948, 335),
+        "position": (965, 335),
     }
 }
 
